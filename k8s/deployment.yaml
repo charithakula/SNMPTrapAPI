@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: snmp-trap-sender
+  labels:
+    app: snmp-trap-sender
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: snmp-trap-sender
+  template:
+    metadata:
+      labels:
+        app: snmp-trap-sender
+    spec:
+      containers:
+      - name: snmp-trap-sender
+        image: snmp-trap-sender:latest
+        ports:
+        - containerPort: 8002
+        imagePullPolicy: Never
