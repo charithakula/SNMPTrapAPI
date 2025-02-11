@@ -16,6 +16,8 @@ COPY . .
 # Step 6: Expose the port that FastAPI will run on
 EXPOSE 8000
 
-# Step 7: Run the FastAPI application using Uvicorn
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+# # Step 7: Run the FastAPI application using Uvicorn
+# CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
 
+# Step 7: Run the FastAPI application using Uvicorn with debug enabled
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--log-level", "debug"]

@@ -7,10 +7,11 @@ from pysnmp.hlapi import *
 import logging
 from fastapi.responses import Response
 from fastapi import Depends
+import asyncio
 from pysnmp.hlapi.v3arch.asyncio import *
 
 # Set up logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)  # Change to DEBUG for more granular logs
 logger = logging.getLogger(__name__)
 
 # Initialize FastAPI app
@@ -18,7 +19,6 @@ app = FastAPI()
 
 # Initialize Prometheus metrics
 REQUEST_COUNT = Counter('http_requests_total', 'Total HTTP requests', ['method', 'endpoint'])
-# You can add more Prometheus metrics based on your needs
 
 # Load SNMP credentials from credentials.json
 def load_snmp_credentials():
@@ -39,17 +39,24 @@ class SNMPTrapRequest(BaseModel):
 # Health Check Endpoint
 @app.get("/health")
 async def health_check():
+    logger.debug("Health check endpoint hit")
     return {"status": "healthy"}
 
-# Function to send SNMPv3 INFORM notification asynchronously
+# Function to send SNMP trap asynchronously
 async def send_snmp_trap(oids):
-    """Send SNMPv3 INFORM notification asynchronously."""
+    """Send SNMP trap asynchronously."""
+    logger.debug(f"Preparing to send SNMP trap with OIDs: {oids}")
+    
     # Load credentials for SNMPv3
     snmpv3_user = credentials['snmpv3_user']
     auth_password = credentials['auth_password']
     priv_password = credentials['priv_password']
     auth_protocol = credentials['auth_protocol']
     priv_protocol = credentials['priv_protocol']
+    snmp_target_ip = credentials['snmp_target_ip']
+    snmp_target_port = credentials['snmp_target_port']
+
+    logger.debug("SNMPv3 credentials loaded successfully")
 
     # Configure SNMPv3 settings
     if auth_protocol == "SHA":
@@ -70,68 +77,99 @@ async def send_snmp_trap(oids):
 
     # Configure SNMPv3 settings
     auth_data = UsmUserData(
-        snmpv3_user,
-        authPassword=auth_password,
-        privPassword=priv_password,
+        userName=snmpv3_user,
+        authKey=auth_password,
+        privKey=priv_password,
         authProtocol=auth_protocol,
         privProtocol=priv_protocol
     )
 
+    logger.debug(f"SNMPv3 user data configured: {snmpv3_user}")
+
     # SNMP target configuration
-    transport_target = await UdpTransportTarget.create(("demo.pysnmp.com", 162))  # Adjust target as needed
-    context_data = ContextData()
+    TARGETS = []
+
+    # Uncomment the following block if you need SNMPv2c
+    TARGETS.append(
+        (
+            CommunityData("Public"),
+            await UdpTransportTarget.create(snmp_target_ip, snmp_target_port),
+            ContextData(),
+        )
+    )
+
+    # Uncomment the following block if you need SNMPv3
+    # TARGETS.append(
+    #     (
+    #         auth_data,
+    #         await UdpTransportTarget.create(snmp_target_ip, snmp_target_port),
+    #         ContextData(),
+    #     )
+    # )
 
     snmpEngine = SnmpEngine()
 
     # Send SNMP trap
-    (
-        errorIndication,
-        errorStatus,
-        errorIndex,
-        varBindTable,
-    ) = await send_notification(
-        snmpEngine,
-        auth_data,
-        transport_target,
-        context_data,
-        "inform",  # NotifyType
-        NotificationType(ObjectIdentity("SNMPv2-MIB", "coldStart")).add_varbinds(*oids),
-    )
+    try:
+        logger.debug("Sending SNMP trap...")
 
-    if errorIndication:
-        logger.error(f"Notification not sent: {errorIndication}")
-        return {"status": "error", "message": f"Notification not sent: {errorIndication}"}
-    elif errorStatus:
-        logger.error(f"Notification Receiver returned error: {errorStatus} @{errorIndex}")
-        return {"status": "error", "message": f"Receiver returned error: {errorStatus} @{errorIndex}"}
-    else:
-        logger.info("Notification delivered:")
-        for name, val in varBindTable:
-            logger.info(f"{name.prettyPrint()} = {val.prettyPrint()}")
-        return {"status": "success", "message": "SNMP trap sent successfully"}
+        for authData, transportTarget, contextData in TARGETS:
+            (
+                errorIndication,
+                errorStatus,
+                errorIndex,
+                varBindTable,
+            ) = await send_notification(
+                snmpEngine,
+                authData,
+                transportTarget,
+                contextData,
+                "inform",  # NotifyType
+                NotificationType(ObjectIdentity("SNMPv2-MIB", "coldStart")).add_varbinds(*oids),
+            )
+
+            if errorIndication:
+                logger.error(f"Notification not sent: {errorIndication}")
+            elif errorStatus:
+                logger.error(f"Notification Receiver returned error: {errorStatus} @ {errorIndex}")
+            else:
+                logger.info("Notification delivered:")
+                for name, val in varBindTable:
+                    logger.info(f"{name.prettyPrint()} = {val.prettyPrint()}")
+
+        snmpEngine.transport_dispatcher.run_dispatcher()
+
+    except Exception as e:
+        logger.error(f"Exception occurred while sending SNMP trap: {str(e)}")
+        return {"status": "error", "message": f"Exception occurred: {str(e)}"}
 
 # FastAPI POST route to send SNMP traps
 @app.post("/send_snmp_trap/")
 async def api_send_snmp_trap(request: SNMPTrapRequest):
-    oids = [
-        ("1.3.6.1.4.1.12345.1.2.1", OctetString(request.source)),
-        ("1.3.6.1.4.1.12345.1.2.2", OctetString(request.severity)),
-        ("1.3.6.1.4.1.12345.1.2.3", OctetString(request.timestamp)),
-        ("1.3.6.1.4.1.12345.1.2.4", OctetString(request.message)),
-        ("1.3.6.1.4.1.12345.1.2.5", OctetString(request.application)),
-        ("1.3.6.1.4.1.12345.1.2.6", OctetString(request.region))
-    ]
-    logger.info(f"📩 Trap request received: {request}")
-    response = await send_snmp_trap(oids)
-    return response
+    logger.debug(f"Received SNMP trap request: {request}")
+    try:
+        oids = [
+            ("1.3.6.1.4.1.12345.1.2.1", OctetString(request.source)),
+            ("1.3.6.1.4.1.12345.1.2.2", OctetString(request.severity)),
+            ("1.3.6.1.4.1.12345.1.2.3", OctetString(request.timestamp)),
+            ("1.3.6.1.4.1.12345.1.2.4", OctetString(request.message)),
+            ("1.3.6.1.4.1.12345.1.2.5", OctetString(request.application)),
+            ("1.3.6.1.4.1.12345.1.2.6", OctetString(request.region))
+        ]
+        logger.debug(f"SNMP trap request OIDs prepared: {oids}")
+        response = await send_snmp_trap(oids)
+        return response
+    except Exception as e:
+        logger.error(f"Error occurred during SNMP trap sending: {str(e)}")
+        return {"status": "error", "message": f"An error occurred: {str(e)}"}
 
 # Metrics Endpoint for Prometheus
 @app.get("/metrics")
 async def metrics():
+    logger.debug("Metrics endpoint hit")
     # Increment the request count for each incoming request
     REQUEST_COUNT.labels(method="GET", endpoint="/metrics").inc()
     
-    # You can add more custom metrics logic here
-    
     # Generate the latest metrics for Prometheus
+    logger.debug("Generating Prometheus metrics")
     return Response(generate_latest(REQUEST_COUNT), media_type="text/plain")

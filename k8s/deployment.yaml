@@ -1,55 +1,60 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: snmp-trap-sender
+  name: snmp-trap-app
   labels:
-    app: snmp-trap-sender
+    app: snmp-trap-app
 spec:
-  replicas: 1  # You can increase this to scale up
+  replicas: 2
   selector:
     matchLabels:
-      app: snmp-trap-sender
+      app: snmp-trap-app
   template:
     metadata:
       labels:
-        app: snmp-trap-sender
+        app: snmp-trap-app
     spec:
       containers:
-        - name: snmp-trap-sender
-          image: your-docker-image:latest  # Replace with your actual Docker image
+        - name: snmp-trap-app
+          image: charithakula/snmp-trap-app:latest
           ports:
-            - containerPort: 8002
+            - containerPort: 8000
           env:
-            - name: SNMP_USER
-              valueFrom:
-                secretKeyRef:
-                  name: snmp-credentials
-                  key: snmpv3_user
-            - name: SNMP_AUTH_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: snmp-credentials
-                  key: auth_password
-            - name: SNMP_PRIV_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: snmp-credentials
-                  key: priv_password
-            - name: SNMP_AUTH_PROTOCOL
-              valueFrom:
-                secretKeyRef:
-                  name: snmp-credentials
-                  key: auth_protocol
-            - name: SNMP_PRIV_PROTOCOL
-              valueFrom:
-                secretKeyRef:
-                  name: snmp-credentials
-                  key: priv_protocol
+            - name: CREDENTIALS_PATH
+              value: "/app/credentials.json"
           volumeMounts:
-            - name: snmp-credentials-volume
-              mountPath: /etc/snmp
-              readOnly: true
+            - name: config-volume
+              mountPath: "/app/credentials.json"
+              subPath: "credentials.json"
+          livenessProbe:
+            httpGet:
+              path: "/health"
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: "/health"
+              port: 8000
+            initialDelaySeconds: 3
+            periodSeconds: 5
       volumes:
-        - name: snmp-credentials-volume
-          secret:
-            secretName: snmp-credentials  # Define the secret with SNMP credentials
+        - name: config-volume
+          configMap:
+            name: snmp-trap-app-config
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: snmp-trap-app-config
+data:
+  credentials.json: |
+    {
+      "snmpv3_user": "your_user",
+      "auth_password": "your_auth_password",
+      "priv_password": "your_priv_password",
+      "auth_protocol": "SHA",
+      "priv_protocol": "AES",
+      "snmp_target_ip": "127.0.0.1",
+      "snmp_target_port": "162"
+    }
