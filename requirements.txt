@@ -1,4 +1,6 @@
-fastapi==0.95.1
-uvicorn==0.22.0
-pysnmp==4.4.12
-pydantic==1.10.2
+fastapi==0.115.8
+pydantic==2.10.6
+pysnmp==7.1.16
+uvicorn==0.34.0
+prometheus_client==0.21.1 # Downgraded to a valid version
+

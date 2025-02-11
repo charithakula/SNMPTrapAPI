@@ -1,17 +1,21 @@
-# Use an official Python runtime as the base image
-FROM python:3.9-slim
+# Step 1: Use an official Python runtime as a base image
+FROM python:3.10-slim
 
-# Set the working directory
+# Step 2: Set the working directory inside the container
 WORKDIR /app
 
-# Copy the local code to the container
-COPY . /app
+# Step 3: Copy the requirements.txt to the working directory
+COPY requirements.txt .
 
-# Install dependencies
+# Step 4: Install the dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Expose port 8002 for the FastAPI app
-EXPOSE 8002
+# Step 5: Copy the rest of the application code into the container
+COPY . .
 
-# Command to run the FastAPI app using Uvicorn
-CMD ["python", "SNMP-Integration.py"]
+# Step 6: Expose the port that FastAPI will run on
+EXPOSE 8000
+
+# Step 7: Run the FastAPI application using Uvicorn
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+
