@@ -89,7 +89,7 @@ async def send_snmp_trap(oids):
     # SNMP target configuration
     TARGETS = []
 
-    # Uncomment the following block if you need SNMPv2c
+    # SNMPv2c Target
     TARGETS.append(
         (
             CommunityData("Public"),
@@ -98,14 +98,14 @@ async def send_snmp_trap(oids):
         )
     )
 
-    # Uncomment the following block if you need SNMPv3
-    # TARGETS.append(
-    #     (
-    #         auth_data,
-    #         await UdpTransportTarget.create(snmp_target_ip, snmp_target_port),
-    #         ContextData(),
-    #     )
-    # )
+    # SNMPv3 Target
+    TARGETS.append(
+        (
+            auth_data,
+            await UdpTransportTarget.create(snmp_target_ip, snmp_target_port),
+            ContextData(),
+        )
+    )
 
     snmpEngine = SnmpEngine()
 
@@ -137,8 +137,6 @@ async def send_snmp_trap(oids):
                 for name, val in varBindTable:
                     logger.info(f"{name.prettyPrint()} = {val.prettyPrint()}")
 
-        snmpEngine.transport_dispatcher.run_dispatcher()
-
     except Exception as e:
         logger.error(f"Exception occurred while sending SNMP trap: {str(e)}")
         return {"status": "error", "message": f"Exception occurred: {str(e)}"}
@@ -167,9 +165,6 @@ async def api_send_snmp_trap(request: SNMPTrapRequest):
 @app.get("/metrics")
 async def metrics():
     logger.debug("Metrics endpoint hit")
-    # Increment the request count for each incoming request
     REQUEST_COUNT.labels(method="GET", endpoint="/metrics").inc()
-    
-    # Generate the latest metrics for Prometheus
     logger.debug("Generating Prometheus metrics")
     return Response(generate_latest(REQUEST_COUNT), media_type="text/plain")
