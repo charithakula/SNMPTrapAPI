@@ -122,6 +122,44 @@ python app.py
 
 By default, the app will run on `http://0.0.0.0:8000`. You can change the port and host by modifying the `app.run()` method.
 
+## Running the Application in Docker
+
+Follow these steps to build and run the **SNMPTrapAPI** application in a Docker container:
+
+1. **Build the Docker image**:
+
+   First, build the Docker image using the following command:
+
+   ```bash
+   docker build -t SNMPTrapAPI .
+   ```
+
+   This will create the Docker image named `SNMPTrapAPI`.
+
+2. **Run the Docker container**:
+
+   Once the image is built, run the container with the following command:
+
+   ```bash
+   docker run -d -p 8000:8000 --name SNMPTrapAPI-container SNMPTrapAPI
+   ```
+
+   This will:
+
+   - Start the container in detached mode (`-d`).
+   - Map port `8000` from the container to port `8000` on the host machine.
+   - Assign the name `SNMPTrapAPI-container` to the running container.
+
+3. **Access the Application**:
+
+   After running the container, you can access the application on:
+
+   ```
+   http://localhost:8000
+   ```
+
+   You can replace `localhost` with the appropriate IP if you're running Docker on a remote server.
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
