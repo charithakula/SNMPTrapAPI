@@ -1,6 +1,5 @@
-fastapi==0.115.8
-pydantic==2.10.6
 pysnmp==7.1.16
-uvicorn==0.34.0
 pycryptodome==3.15.0
 prometheus_client==0.21.1
+Flask==3.1.0
+Werkzeug==3.1.3
